@@ -26,11 +26,13 @@
 - Person
 - User
 
+### 사용
+
 - UserDetails 인터페이스를 직접 구현하기 보다는, 이미 구현된 User 클래스 등을 상속하여 구현하는 것이 더 수월
 - User 클래스의 경우, username, password, (Collection<? extends GrantedAuthority>) authorities 이 세가지만 생성자로 전달하면 됨
   - enabled, accountNonExpired, credentialsNonExpired, accountNonLocked 는 자동으로 true로
 
-### 구현 예시(User 클래스를 상속한 경우)
+#### 구현 예시(User 클래스를 상속한 경우)
 
 ```java
 package io.clroot.club.security.dto;
@@ -86,3 +88,65 @@ public class ClubAuthMemberDTO extends User {
 - LdapUserDetailsManager
 - LdapUserDetailsService
 - UserDetailsServiceWrapper
+
+### 사용
+
+- 클래스를 생성하여 UserDetailsService를 직접 구현
+- loadUserByUsername 메서드를 구현 할 때, user 정보가 persist 된 곳에서 데이터 읽어오기
+
+#### 구현 예시
+
+```java
+package io.clroot.club.security.service;
+
+import io.clroot.club.entity.ClubMember;
+import io.clroot.club.repository.ClubMemberRepository;
+import io.clroot.club.security.dto.ClubAuthMemberDTO;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+@Slf4j
+public class ClubUserDetailsService implements UserDetailsService {
+
+    private final ClubMemberRepository clubMemberRepository;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        log.info("ClubUserDetailsService loadUserByUsername " + username);
+
+        Optional<ClubMember> result = clubMemberRepository.findByEmail(username, false);
+
+        if (result.isEmpty()) {
+            throw new UsernameNotFoundException("Check Email or Social");
+        }
+
+        ClubMember clubMember = result.get();
+
+        ClubAuthMemberDTO clubAuthMember = new ClubAuthMemberDTO(
+                clubMember.getEmail(),
+                clubMember.getPassword(),
+                clubMember.isFromSocial(),
+                clubMember.getRoleSet().stream().map(
+                        role -> new SimpleGrantedAuthority("ROLE_" + role.name())
+                ).collect(Collectors.toSet())
+        );
+
+        clubAuthMember.setName(clubAuthMember.getName());
+        clubAuthMember.setFromSocial(clubAuthMember.isFromSocial());
+
+        return clubAuthMember;
+    }
+}
+```
