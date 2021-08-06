@@ -1,7 +1,6 @@
 # OAuth2.0
 
 - 공개 API(Open API)로 제공되는 표준 인증 방법
--
 
 ## Flow
 
